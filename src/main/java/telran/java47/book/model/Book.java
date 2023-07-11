@@ -5,6 +5,8 @@ import java.util.Set;
 
 import javax.persistence.Entity;
 import javax.persistence.Id;
+import javax.persistence.JoinColumn;
+import javax.persistence.JoinTable;
 import javax.persistence.ManyToMany;
 import javax.persistence.ManyToOne;
 
@@ -26,6 +28,11 @@ public class Book implements Serializable {
 	private String isbn;
 	private String title;
 	@ManyToMany
+	@JoinTable(
+			name="BOOK_AUTHORS",
+			joinColumns = @JoinColumn(name="BOOK_ISBN"),
+			inverseJoinColumns = @JoinColumn(name="AUTHORS_NAME")
+			)
 	private Set<Author> authors;
 	@ManyToOne
 	private Publisher publisher;
