@@ -4,10 +4,11 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import javax.transaction.Transactional;
+
 
 import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import telran.java47.book.dao.AuthorRepository;
@@ -37,10 +38,10 @@ public class BookServiceImpl implements BookService {
 			return false;
 		}
 		Publisher publisher = publisherRepository.findById(bookDto.getPublisher())
-				.orElse(publisherRepository.save(new Publisher(bookDto.getPublisher())));
+				.orElseGet(() -> publisherRepository.save(new Publisher(bookDto.getPublisher())));
 		Set<Author> authors = bookDto.getAuthors().stream()
 				.map(author -> authorRepository.findById(author.getName())
-						.orElse(authorRepository.save(new Author(author.getName(), author.getBirthDate()))))
+						.orElseGet(() -> authorRepository.save(new Author(author.getName(), author.getBirthDate()))))
 				.collect(Collectors.toSet());
 		Book book = new Book(bookDto.getIsbn(), bookDto.getTitle(), authors, publisher);
 		bookRepository.save(book);
@@ -62,6 +63,7 @@ public class BookServiceImpl implements BookService {
 	}
 
 	@Override
+	@Transactional
 	public BookDto updateBookTitle(String isbn, String newTitle) {
 		Book book = bookRepository.findById(isbn).orElseThrow(BookNotFoundException::new);
 		book.setTitle(newTitle);
@@ -71,42 +73,32 @@ public class BookServiceImpl implements BookService {
 
 	@Override
 	public List<BookDto> findBooksByAuthor(String authorName) {
-		return bookRepository.findByAuthor(authorName)
-				.stream()
-				.map(b -> modelMapper.map(b, BookDto.class))
-				.toList();
+		Author author = authorRepository.findById(authorName).orElseThrow(BookNotFoundException::new);
+		return author.getBooks().stream().map(b -> modelMapper.map(b, BookDto.class)).toList();
 	}
 
 	@Override
 	public List<BookDto> findBooksByPublisher(String publisherName) {
-		return bookRepository.findByPubisher(publisherName)
-				.stream()
-				.map(b -> modelMapper.map(b, BookDto.class))
-				.toList();
+		Publisher publisher = publisherRepository.findById(publisherName).orElseThrow(BookNotFoundException::new);
+		return publisher.getBooks().stream().map(b -> modelMapper.map(b, BookDto.class)).toList();
 	}
 
 	@Override
 	public List<AuthorDto> findBookAuthors(String isbn) {
-		return authorRepository.findBookAuthors(isbn)
-				.stream()
-				.map(a -> modelMapper.map(a, AuthorDto.class))
-				.toList();
+		Book book = bookRepository.findById(isbn).orElseThrow(BookNotFoundException::new);
+		return book.getAuthors().stream().map(a -> modelMapper.map(a, AuthorDto.class)).toList();
 	}
 
 	@Override
+	@Transactional(readOnly=true)
 	public List<PublisherDto> findPublishersByAuthor(String authorName) {
-		return publisherRepository.findAuthorsPublishers(authorName)
-				.stream()
-				.map(p -> modelMapper.map(p, PublisherDto.class))
-				.toList();
+		return publisherRepository.findDistinctByBooksAuthorsName(authorName).map(p -> modelMapper.map(p, PublisherDto.class)).toList();
 	}
 
 	@Override
+	@Transactional
 	public AuthorDto removeAuthorAndBooks(String authorName) {
-		Author author = authorRepository.findById(authorName).orElseThrow(BookNotFoundException::new);
-		List<Book> books = bookRepository.findByAuthor(authorName);
-		books.forEach(b -> bookRepository.delete(b));
-		authorRepository.delete(author);
+		Author author = authorRepository.deleteById(authorName);
 		return modelMapper.map(author, AuthorDto.class);
 	}
 }
